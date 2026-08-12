@@ -20,4 +20,11 @@ jobs:
         run: node --test parser-service/*.test.mjs
 
       - name: Deploy temporary Cloudflare Worker
-        run: npx --yes wrangler@latest deploy --temporary
+        run: npx --yes wrangler@latest deploy --temporary 2>&1 | tee cloudflare-deploy.txt
+
+      - name: Upload deployment info
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-deploy-info
+          path: cloudflare-deploy.txt
+          retention-days: 1
