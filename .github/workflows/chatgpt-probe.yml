@@ -28,25 +28,44 @@ jobs:
             echo '=== curl direct ==='
             curl -L -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150 Safari/537.36' -sS -D direct.headers -o direct.html -w 'status=%{http_code} size=%{size_download} final=%{url_effective}\n' "$URL" || true
             echo "body_bytes=$(wc -c < direct.html 2>/dev/null || echo 0)"
+            echo "turbo_chunks=$(grep -o 'streamController.enqueue' direct.html | wc -l || true)"
             echo
 
-            echo '=== Jina Reader default ==='
-            curl -L -sS -D jina.headers -o jina.txt -w 'status=%{http_code} size=%{size_download} final=%{url_effective}\n' "https://r.jina.ai/$URL" || true
+            echo '=== Jina Reader markdown ==='
+            curl -L -sS -H 'X-No-Cache: true' -D jina.headers -o jina.txt -w 'status=%{http_code} size=%{size_download} final=%{url_effective}\n' "https://r.jina.ai/$URL" || true
             echo "body_bytes=$(wc -c < jina.txt 2>/dev/null || echo 0)"
-            head -60 jina.txt || true
+            head -25 jina.txt || true
             echo
 
-            echo '=== Jina Reader browser/network-idle ==='
+            echo '=== Jina Reader raw HTML / curl engine ==='
+            curl -L -sS \
+              -H 'X-Engine: curl' \
+              -H 'X-Respond-With: html' \
+              -H 'X-Respond-Timing: html' \
+              -H 'X-No-Cache: true' \
+              -D jina-html.headers -o jina-html.html \
+              -w 'status=%{http_code} size=%{size_download} final=%{url_effective}\n' \
+              "https://r.jina.ai/$URL" || true
+            echo "body_bytes=$(wc -c < jina-html.html 2>/dev/null || echo 0)"
+            echo "turbo_chunks=$(grep -o 'streamController.enqueue' jina-html.html | wc -l || true)"
+            head -c 500 jina-html.html || true
+            echo
+            echo
+
+            echo '=== Jina Reader raw HTML / browser engine ==='
             curl -L -sS \
               -H 'X-Engine: browser' \
+              -H 'X-Respond-With: html' \
               -H 'X-Timeout: 30' \
               -H 'X-Respond-Timing: network-idle' \
               -H 'X-No-Cache: true' \
-              -D jina-browser.headers -o jina-browser.txt \
+              -D jina-browser-html.headers -o jina-browser-html.html \
               -w 'status=%{http_code} size=%{size_download} final=%{url_effective}\n' \
               "https://r.jina.ai/$URL" || true
-            echo "body_bytes=$(wc -c < jina-browser.txt 2>/dev/null || echo 0)"
-            head -100 jina-browser.txt || true
+            echo "body_bytes=$(wc -c < jina-browser-html.html 2>/dev/null || echo 0)"
+            echo "turbo_chunks=$(grep -o 'streamController.enqueue' jina-browser-html.html | wc -l || true)"
+            head -c 500 jina-browser-html.html || true
+            echo
             echo
 
             echo '=== curl_cffi chrome impersonation ==='
@@ -73,8 +92,10 @@ jobs:
             direct.html
             jina.headers
             jina.txt
-            jina-browser.headers
-            jina-browser.txt
+            jina-html.headers
+            jina-html.html
+            jina-browser-html.headers
+            jina-browser-html.html
             cffi.html
           if-no-files-found: ignore
           retention-days: 1
