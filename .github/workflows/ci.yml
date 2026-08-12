@@ -26,14 +26,8 @@ jobs:
       - name: Run frontend unit tests
         run: npm test
 
-      - name: Parser test - URL detection
-        run: node --test --test-name-pattern="detectServerPlatform" parser-service/parsers.test.mjs
-
-      - name: Parser test - ChatGPT turbo stream
-        run: node --test --test-name-pattern="parseChatGptHtml" parser-service/parsers.test.mjs
-
-      - name: Parser test - Gemini batchexecute
-        run: node --test --test-name-pattern="decodeGeminiEnvelope" parser-service/parsers.test.mjs
+      - name: Run parser-service unit tests
+        run: node --test parser-service/parsers.test.mjs parser-service/providers/*.test.mjs
 
       - name: Check production parser health
         run: curl --retry 3 --retry-delay 2 --retry-all-errors --fail --silent --show-error "$VITE_PARSER_API/health"
