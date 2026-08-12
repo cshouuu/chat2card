@@ -10,75 +10,29 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install curl_cffi
-        run: pip install --disable-pip-version-check curl_cffi
-
-      - name: Probe real ChatGPT share URL
+      - name: Probe Jina raw HTML browser CORS
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://chatgpt.com/s/t_6a7c19e737f88191a89f811d7976c18f'
+          TARGET='https://r.jina.ai/https://chatgpt.com/s/t_6a7c19e737f88191a89f811d7976c18f'
+          ORIGIN='https://cshouuu.github.io'
           {
-            echo '=== curl direct ==='
-            curl -L -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150 Safari/537.36' -sS -D direct.headers -o direct.html -w 'status=%{http_code} size=%{size_download} final=%{url_effective}\n' "$URL" || true
-            echo "body_bytes=$(wc -c < direct.html 2>/dev/null || echo 0)"
-            echo "turbo_chunks=$(grep -o 'streamController.enqueue' direct.html | wc -l || true)"
+            echo '=== CORS preflight ==='
+            curl -sS -D - -o /dev/null -X OPTIONS "$TARGET" \
+              -H "Origin: $ORIGIN" \
+              -H 'Access-Control-Request-Method: GET' \
+              -H 'Access-Control-Request-Headers: x-engine,x-respond-with,x-respond-timing,x-no-cache'
             echo
-
-            echo '=== Jina Reader markdown ==='
-            curl -L -sS -H 'X-No-Cache: true' -D jina.headers -o jina.txt -w 'status=%{http_code} size=%{size_download} final=%{url_effective}\n' "https://r.jina.ai/$URL" || true
-            echo "body_bytes=$(wc -c < jina.txt 2>/dev/null || echo 0)"
-            head -25 jina.txt || true
-            echo
-
-            echo '=== Jina Reader raw HTML / curl engine ==='
-            curl -L -sS \
+            echo '=== Browser-shaped GET ==='
+            curl -sS -D cors-get.headers -o cors-get.html "$TARGET" \
+              -H "Origin: $ORIGIN" \
               -H 'X-Engine: curl' \
               -H 'X-Respond-With: html' \
               -H 'X-Respond-Timing: html' \
-              -H 'X-No-Cache: true' \
-              -D jina-html.headers -o jina-html.html \
-              -w 'status=%{http_code} size=%{size_download} final=%{url_effective}\n' \
-              "https://r.jina.ai/$URL" || true
-            echo "body_bytes=$(wc -c < jina-html.html 2>/dev/null || echo 0)"
-            echo "turbo_chunks=$(grep -o 'streamController.enqueue' jina-html.html | wc -l || true)"
-            head -c 500 jina-html.html || true
-            echo
-            echo
-
-            echo '=== Jina Reader raw HTML / browser engine ==='
-            curl -L -sS \
-              -H 'X-Engine: browser' \
-              -H 'X-Respond-With: html' \
-              -H 'X-Timeout: 30' \
-              -H 'X-Respond-Timing: network-idle' \
-              -H 'X-No-Cache: true' \
-              -D jina-browser-html.headers -o jina-browser-html.html \
-              -w 'status=%{http_code} size=%{size_download} final=%{url_effective}\n' \
-              "https://r.jina.ai/$URL" || true
-            echo "body_bytes=$(wc -c < jina-browser-html.html 2>/dev/null || echo 0)"
-            echo "turbo_chunks=$(grep -o 'streamController.enqueue' jina-browser-html.html | wc -l || true)"
-            head -c 500 jina-browser-html.html || true
-            echo
-            echo
-
-            echo '=== curl_cffi chrome impersonation ==='
-            python - <<'PY'
-          from curl_cffi import requests
-          url = 'https://chatgpt.com/s/t_6a7c19e737f88191a89f811d7976c18f'
-          try:
-              r = requests.get(url, impersonate='chrome', timeout=30, headers={'Accept-Language':'en-US,en;q=0.9'})
-              print('status=', r.status_code, 'bytes=', len(r.content), 'final=', r.url)
-              open('cffi.html','wb').write(r.content)
-          except Exception as e:
-              print('ERROR', repr(e))
-          PY
+              -H 'X-No-Cache: true'
+            grep -Ei '^(access-control|vary|content-type|HTTP/)' cors-get.headers || true
+            echo "body_bytes=$(wc -c < cors-get.html)"
+            echo "turbo_chunks=$(grep -o 'streamController.enqueue' cors-get.html | wc -l || true)"
           } | tee probe.txt
 
       - name: Upload probe output
@@ -88,14 +42,7 @@ jobs:
           name: chatgpt-share-probe
           path: |
             probe.txt
-            direct.headers
-            direct.html
-            jina.headers
-            jina.txt
-            jina-html.headers
-            jina-html.html
-            jina-browser-html.headers
-            jina-browser-html.html
-            cffi.html
+            cors-get.headers
+            cors-get.html
           if-no-files-found: ignore
           retention-days: 1
