@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  VITE_PARSER_API: https://chat2card-parser.colorful-paradox.workers.dev
+
 jobs:
   test:
     name: Test & Build
@@ -32,10 +35,11 @@ jobs:
       - name: Parser test - Gemini batchexecute
         run: node --test --test-name-pattern="decodeGeminiEnvelope" parser-service/parsers.test.mjs
 
+      - name: Check production parser health
+        run: curl --retry 3 --retry-delay 2 --retry-all-errors --fail --silent --show-error "$VITE_PARSER_API/health"
+
       - name: Type check & build
         run: npm run build
-        env:
-          VITE_PARSER_API: ${{ vars.VITE_PARSER_API }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -66,8 +70,6 @@ jobs:
 
       - run: npm ci
       - run: npm run build
-        env:
-          VITE_PARSER_API: ${{ vars.VITE_PARSER_API }}
 
       - uses: actions/configure-pages@v5
         with:
