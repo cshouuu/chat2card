@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  probe:
+  real-share-parser:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,82 +14,61 @@ jobs:
         with:
           node-version: 22
 
-      - name: Probe Jina structured and browser fallbacks
+      - name: Parse all five real public shares
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p probe
-
-          # DeepSeek public JSON endpoint through Jina, for browser-safe CORS proxying.
-          curl -sS -D probe/deepseek-jina.headers -o probe/deepseek-jina.txt \
-            -H 'X-No-Cache: true' \
-            'https://r.jina.ai/https://chat.deepseek.com/api/v0/share/content?share_id=yr7r5ogtich73zqhhn' || true
-          echo "deepseek-jina bytes=$(wc -c < probe/deepseek-jina.txt) status=$(head -1 probe/deepseek-jina.headers)"
-
-          # Jina browser engine: check whether fully-rendered public pages retain user/assistant structure.
-          for entry in \
-            'doubao|https://www.doubao.com/thread/xHnWxp02eroYtbFwR' \
-            'gemini|https://gemini.google.com/share/804a0cecab4b'; do
-            name="${entry%%|*}"; url="${entry#*|}"
-            curl -sS -D "probe/${name}-jina-browser.headers" -o "probe/${name}-jina-browser.md" \
-              -H 'X-Engine: browser' \
-              -H 'X-No-Cache: true' \
-              "https://r.jina.ai/${url}" || true
-            echo "${name}-jina-browser bytes=$(wc -c < probe/${name}-jina-browser.md) status=$(head -1 probe/${name}-jina-browser.headers)"
-          done
-
-      - name: Probe Doubao structured API directly
-        shell: bash
-        run: |
-          set -euo pipefail
-          URL='https://www.doubao.com/im/message/share/get?aid=497858&device_platform=web&samantha_web=1'
-          curl -sS -D probe/doubao-api.headers -o probe/doubao-api.json "$URL" \
-            -X POST \
-            -H 'content-type: application/json; encoding=utf-8' \
-            -H 'origin: https://www.doubao.com' \
-            -H 'referer: https://www.doubao.com/thread/xHnWxp02eroYtbFwR' \
-            -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150 Safari/537.36' \
-            --data '{"share_id":"xHnWxp02eroYtbFwR","need_bot_info":true}' || true
-          echo "doubao-api bytes=$(wc -c < probe/doubao-api.json) status=$(head -1 probe/doubao-api.headers)"
           node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          try {
-            const j=JSON.parse(fs.readFileSync('probe/doubao-api.json','utf8'));
-            const list=j?.data?.message_snapshot?.message_list;
-            console.log(JSON.stringify({code:j?.code,messages:Array.isArray(list)?list.length:0,title:j?.data?.share_info?.share_name||null}));
-          } catch(e) { console.log(JSON.stringify({doubaoJson:false,error:String(e?.message||e)})); }
+          import { parsePublicShare } from './parser-service/parsers.mjs';
+
+          const cases = [
+            ['chatgpt', 'https://chatgpt.com/s/t_6a7c19e737f88191a89f811d7976c18f'],
+            ['deepseek', 'https://chat.deepseek.com/share/yr7r5ogtich73zqhhn'],
+            ['doubao', 'https://www.doubao.com/thread/xHnWxp02eroYtbFwR'],
+            ['gemini', 'https://share.gemini.google/etOFajKjXapO'],
+            ['claude', 'https://claude.ai/share/5c870dee-553c-4133-b4ea-70d2c49063ff'],
+          ];
+
+          const summaries = [];
+          for (const [provider, url] of cases) {
+            const parsed = await parsePublicShare(url);
+            if (!Array.isArray(parsed.messages) || parsed.messages.length === 0) {
+              throw new Error(`${provider}: no messages parsed`);
+            }
+            for (const message of parsed.messages) {
+              if (!['user', 'assistant'].includes(message.role)) {
+                throw new Error(`${provider}: unsupported role ${message.role}`);
+              }
+              if (Object.hasOwn(message, 'thinking_content') || Object.hasOwn(message, 'reasoning')) {
+                throw new Error(`${provider}: reasoning field leaked into normalized message`);
+              }
+            }
+            const attachments = parsed.messages.flatMap((m) => m.attachments || []);
+            summaries.push({
+              provider,
+              ok: true,
+              messages: parsed.messages.length,
+              attachments: attachments.length,
+              images: attachments.filter((a) => a.type === 'image').length,
+              files: attachments.filter((a) => a.type === 'file').length,
+              hiddenAttachments: attachments.filter((a) => a.hidden).length,
+              title: Boolean(parsed.title),
+            });
+          }
+
+          const byProvider = Object.fromEntries(summaries.map((x) => [x.provider, x]));
+          if (byProvider.chatgpt.messages !== 2) throw new Error(`ChatGPT expected 2 messages, got ${byProvider.chatgpt.messages}`);
+          if (byProvider.deepseek.messages !== 2) throw new Error(`DeepSeek expected 2 messages, got ${byProvider.deepseek.messages}`);
+          if (byProvider.doubao.messages !== 2) throw new Error(`Doubao expected 2 messages, got ${byProvider.doubao.messages}`);
+          if (byProvider.gemini.messages !== 4) throw new Error(`Gemini expected 4 messages, got ${byProvider.gemini.messages}`);
+          if (byProvider.gemini.images < 2) throw new Error(`Gemini expected at least 2 image attachments, got ${byProvider.gemini.images}`);
+
+          // Only structural summaries are printed; conversation bodies are intentionally omitted.
+          console.log(JSON.stringify(summaries, null, 2));
           NODE
 
-      - name: Probe Gemini RPC through Jina browser page
-        shell: bash
+      - name: Verify frontend tests and production build
         run: |
-          set -euo pipefail
-          # Keep a direct control sample proving the public RPC remains decodable from a normal server egress.
-          python - <<'PY' > probe/gemini-freq.txt
-          import json
-          sid='804a0cecab4b'
-          inner=json.dumps([None,sid,[4]], separators=(',',':'))
-          print(json.dumps([[['ujx1Bf',inner,None,'generic']]], separators=(',',':')))
-          PY
-          FREQ=$(cat probe/gemini-freq.txt)
-          curl -sS -D probe/gemini-rpc.headers -o probe/gemini-rpc.txt \
-            'https://gemini.google.com/_/BardChatUi/data/batchexecute?rpcids=ujx1Bf&source-path=%2Fshare%2F804a0cecab4b&rt=c' \
-            -H 'content-type: application/x-www-form-urlencoded;charset=UTF-8' \
-            -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150 Safari/537.36' \
-            --data-urlencode "f.req=${FREQ}" || true
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import { parseGeminiBatchExecute } from './parser-service/parsers.mjs';
-          try {
-            const p=parseGeminiBatchExecute(fs.readFileSync('probe/gemini-rpc.txt','utf8'));
-            console.log(JSON.stringify({gemini:true,messages:p.messages.length,title:Boolean(p.title),attachments:p.messages.reduce((n,m)=>n+(m.attachments?.length||0),0)}));
-          } catch(e) { console.log(JSON.stringify({gemini:false,error:String(e?.message||e)})); }
-          NODE
-
-      - name: Upload probe samples
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: real-share-probe
-          path: probe
-          retention-days: 1
+          npm ci
+          npm test
+          npm run build
