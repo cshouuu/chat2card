@@ -85,12 +85,28 @@ function decodeBlocks(raw) {
   if (Array.isArray(raw?.content_block) && raw.content_block.length) return raw.content_block;
   if (typeof raw?.content !== 'string') return [];
   const trimmed = raw.content.trim();
-  if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) return [];
+  if (!trimmed.startsWith('[')) return [];
   try {
     const parsed = JSON.parse(trimmed);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+function decodeInlineText(raw) {
+  if (typeof raw?.content !== 'string') return '';
+  const trimmed = raw.content.trim();
+  if (!trimmed) return '';
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === 'string') return parsed.trim();
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && typeof parsed.text === 'string') {
+      return parsed.text.trim();
+    }
+    return '';
+  } catch {
+    return trimmed;
   }
 }
 
@@ -116,11 +132,11 @@ function extractMessage(raw) {
     }
   }
 
-  // Real Doubao USER messages commonly have an empty content_block and put the
-  // literal prompt directly in `content`. Do not JSON-parse-or-drop that text.
-  if (!textParts.length && typeof raw?.content === 'string') {
-    const plain = raw.content.trim();
-    if (plain && !plain.startsWith('[') && !plain.startsWith('{')) textParts.push(plain);
+  // Real Doubao USER messages often have an empty content_block and serialize
+  // the literal prompt as {"text":"..."} in `content`.
+  if (!textParts.length) {
+    const inlineText = decodeInlineText(raw);
+    if (inlineText) textParts.push(inlineText);
   }
 
   return { content: textParts.join('\n\n').trim(), attachments: dedupeAttachments(attachments) };
