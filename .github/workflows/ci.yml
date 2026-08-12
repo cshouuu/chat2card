@@ -20,8 +20,11 @@ jobs:
 
       - run: npm ci
 
-      - name: Run unit tests
+      - name: Run frontend unit tests
         run: npm test
+
+      - name: Run parser service tests
+        run: npm run test:parser
 
       - name: Type check & build
         run: npm run build
