@@ -15,9 +15,9 @@
 
 ---
 
-**中文**:粘贴 ChatGPT / Claude / 豆包等 AI 对话(纯文本或 ChatGPT 官方导出 JSON),实时预览,一键导出 PNG 图片 / 自包含 HTML / Markdown。6 套主题,适合发朋友圈、写公众号、做技术分享、存档对话。
+**中文**:粘贴 AI 对话分享链接(Claude / DeepSeek / 豆包等)或对话文本/JSON,实时预览,一键导出 PNG 图片 / 自包含 HTML / Markdown。6 套主题,适合发朋友圈、写公众号、做技术分享、存档对话。
 
-**English**: Paste an AI conversation (plain text or ChatGPT's official export JSON), preview it live, and export it as a beautiful PNG image / self-contained HTML / Markdown. 6 built-in themes. Perfect for sharing on social media, writing blog posts, or archiving chats.
+**English**: Paste a share link (Claude / DeepSeek / Doubao) or raw conversation text / JSON, preview it live, and export it as a beautiful PNG image / self-contained HTML / Markdown. 6 built-in themes. Perfect for sharing on social media, writing blog posts, or archiving chats.
 
 ---
 
@@ -25,6 +25,16 @@
 
 - **Zero config** — open the demo, paste your chat, export. No signup, no API keys, no backend.
 - **Privacy first** — everything runs in your browser via pure client-side code.
+- **Share link parsing** — paste a conversation share link and it's parsed automatically:
+
+  | Platform | Support |
+  |:---|:---|
+  | Claude (`claude.ai/share/…`) | ✅ Full |
+  | DeepSeek (`chat.deepseek.com/share/…`) | ⚠️ Best-effort |
+  | 豆包 (`doubao.com/thread/…`) | ⚠️ Best-effort |
+  | ChatGPT / Gemini | ❌ Requires login / anti-bot |
+
+  > Link parsing goes through a third-party reader service (r.jina.ai); for sensitive conversations use paste mode below. 链接解析需经第三方服务中转,敏感对话请用粘贴模式。
 - **Multiple input formats**
   - Plain text with role prefixes: `用户:` / `ChatGPT:` / `System:` (中英文均可)
   - ChatGPT official export JSON (`conversation.json`)
@@ -37,7 +47,7 @@
 
 ### Option A: Use the online demo
 
-Open the demo below, click 示例一 / 示例二, or paste your own conversation:
+Open the demo below, click 示例一 / 示例二, paste a share link, or paste your own conversation:
 
 > **Live Demo**: https://cshouuu.github.io/chat2card/
 

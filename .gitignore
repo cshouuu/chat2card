@@ -10,3 +10,5 @@ npm-debug.log*
 .puppeteer-profile
 scripts/
 *.timestamp-*.mjs
+e2e-link.mjs
+e2e-link.png

@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import Card from './components/Card';
 import Editor from './components/Editor';
 import Preview from './components/Preview';
 import Toolbar from './components/Toolbar';
 import { exportHtml, exportMarkdown } from './core/export';
+import { detectPlatform, isShareLink, parseShareLink, PLATFORM_INFO } from './core/linkParser';
 import { ParseError, parseChat } from './core/parser';
 import { DEFAULT_SAMPLE, TECH_SAMPLE } from './samples';
 import { getTheme } from './themes/themes';
@@ -35,18 +36,60 @@ export default function App() {
   const [title, setTitle] = useState(DEFAULT_SAMPLE.title);
   const [themeId, setThemeId] = useState('aurora');
   const [exporting, setExporting] = useState(false);
+  const [linkParsing, setLinkParsing] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkResult, setLinkResult] = useState<Awaited<ReturnType<typeof parseShareLink>> | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  const isLink = isShareLink(rawText);
+  const platform = isLink ? detectPlatform(rawText.trim()) : null;
+
+  // 文本/JSON 同步解析(仅非链接模式)
   const { parsed, error } = useMemo(() => {
+    if (isLink) return { parsed: null, error: null };
     try {
       return { parsed: parseChat(rawText), error: null };
     } catch (e) {
       return { parsed: null, error: e instanceof ParseError ? e.message : String(e) };
     }
-  }, [rawText]);
+  }, [rawText, isLink]);
 
-  const messages = parsed?.messages ?? [];
+  // 链接异步解析(300ms 防抖 + 取消保护)
+  useEffect(() => {
+    if (!isLink) {
+      setLinkParsing(false);
+      setLinkError(null);
+      setLinkResult(null);
+      return;
+    }
+    let cancelled = false;
+    setLinkParsing(true);
+    setLinkError(null);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await parseShareLink(rawText.trim());
+        if (cancelled) return;
+        setLinkResult(result);
+        setLinkParsing(false);
+        // Claude 等平台分享页无标题字段,解析后应清空旧标题
+        setTitle(result.title ?? '');
+      } catch (e) {
+        if (cancelled) return;
+        setLinkResult(null);
+        setLinkParsing(false);
+        setLinkError(e instanceof ParseError ? e.message : String(e));
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [rawText, isLink]);
+
+  const messages = (linkResult?.messages ?? parsed?.messages) ?? [];
+  const activeError = isLink ? linkError : error;
   const theme = getTheme(themeId);
+  const platformHint = platform ? PLATFORM_INFO[platform] : null;
 
   const handleLoadSample = useCallback((key: 'default' | 'tech') => {
     const sample = key === 'tech' ? TECH_SAMPLE : DEFAULT_SAMPLE;
@@ -154,7 +197,15 @@ export default function App() {
       />
 
       <main className="workspace">
-        <Editor value={rawText} onChange={setRawText} error={error} messageCount={messages.length} onLoadSample={handleLoadSample} />
+        <Editor
+          value={rawText}
+          onChange={setRawText}
+          error={activeError}
+          messageCount={messages.length}
+          onLoadSample={handleLoadSample}
+          linkParsing={linkParsing}
+          platformHint={platformHint}
+        />
         <Preview>
           {(ref) => <Card ref={ref} messages={messages} title={title.trim() || undefined} theme={theme} />}
         </Preview>

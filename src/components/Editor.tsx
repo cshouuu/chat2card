@@ -4,9 +4,25 @@ interface EditorProps {
   error: string | null;
   messageCount: number;
   onLoadSample: (key: 'default' | 'tech') => void;
+  linkParsing?: boolean;
+  platformHint?: { name: string; support: 'full' | 'best-effort' | 'blocked' } | null;
 }
 
-export default function Editor({ value, onChange, error, messageCount, onLoadSample }: EditorProps) {
+const SUPPORT_LABEL: Record<string, string> = {
+  full: '完美支持',
+  'best-effort': '尽力解析',
+  blocked: '暂不支持',
+};
+
+export default function Editor({
+  value,
+  onChange,
+  error,
+  messageCount,
+  onLoadSample,
+  linkParsing,
+  platformHint,
+}: EditorProps) {
   return (
     <section className="panel" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div className="panel-head">
@@ -27,15 +43,43 @@ export default function Editor({ value, onChange, error, messageCount, onLoadSam
           className="editor"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={'在这里粘贴你的 AI 对话…\n\n支持两种格式:\n\n1) 纯文本(带角色前缀):\n用户: 你好\nChatGPT: 你好!\n\n2) ChatGPT 官方导出 JSON:\n直接粘贴 conversation.json 的内容'}
+          placeholder={
+            '粘贴 AI 对话或分享链接,自动识别解析…\n\n支持三种输入:\n\n1) 分享链接(推荐):\nhttps://claude.ai/share/xxxx\nhttps://chat.deepseek.com/share/xxxx\nhttps://www.doubao.com/thread/xxxx\n\n2) 纯文本(带角色前缀):\n用户: 你好\nChatGPT: 你好!\n\n3) ChatGPT 官方导出 JSON:\n粘贴 conversation.json 内容'
+          }
           spellCheck={false}
         />
         <div className={`editor-status ${error ? 'is-error' : ''}`}>
-          {error ? (
+          {linkParsing ? (
+            <span>⏳ 正在解析分享链接{platformHint ? `(${platformHint.name})` : ''}…</span>
+          ) : error ? (
             <span>⚠ {error}</span>
+          ) : platformHint && messageCount > 0 ? (
+            <span>
+              ✅ 已从 {platformHint.name} 分享链接解析出 <b>{messageCount}</b> 条消息
+            </span>
+          ) : platformHint ? (
+            <span>
+              🔗 已识别 {platformHint.name} 分享链接 · 支持度:
+              <b> {SUPPORT_LABEL[platformHint.support]}</b>
+              {platformHint.support !== 'full' ? ' · 也可复制文本直接粘贴' : ''}
+            </span>
           ) : (
             <span>✓ 已解析 {messageCount} 条消息</span>
           )}
+        </div>
+        <div
+          style={{
+            padding: '8px 16px',
+            borderTop: '1px solid var(--border)',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            lineHeight: 1.6,
+            background: 'rgba(124,127,242,0.05)',
+          }}
+        >
+          🔒 粘贴文本/JSON 完全本地处理;分享链接解析需经第三方服务(r.jina.ai)中转,敏感对话请用粘贴模式。
+          <br />
+          平台支持:Claude ✅ · DeepSeek/豆包 ⚠️ 尽力 · ChatGPT/Gemini ❌(需登录或反爬)
         </div>
       </div>
     </section>

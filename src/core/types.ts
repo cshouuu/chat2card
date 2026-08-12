@@ -14,7 +14,7 @@ export interface ParsedChat {
   title?: string;
   messages: ChatMessage[];
   /** 解析来源 */
-  source: 'plaintext' | 'chatgpt-json' | 'manual';
+  source: 'plaintext' | 'chatgpt-json' | 'manual' | 'link';
 }
 
 /** 解析失败时抛出的错误 */
