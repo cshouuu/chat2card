@@ -61,10 +61,12 @@ test('decodeGeminiEnvelope and parseGeminiBatchExecute extract turns', () => {
   root[1] = [turn];
   root[2] = [null, 'Agents'];
   const payload = [root];
-  const envelope = [['wrb.fr', 'ujx1Bf', JSON.stringify(payload), null]];
+  const serializedPayload = JSON.stringify(payload);
+  const normalizedPayload = JSON.parse(serializedPayload);
+  const envelope = [['wrb.fr', 'ujx1Bf', serializedPayload, null]];
   const body = `)]}'\n${JSON.stringify(envelope)}\n`;
 
-  assert.deepEqual(decodeGeminiEnvelope(body), payload);
+  assert.deepEqual(decodeGeminiEnvelope(body), normalizedPayload);
   const parsed = parseGeminiBatchExecute(body);
   assert.equal(parsed.title, 'Agents');
   assert.deepEqual(parsed.messages, [
