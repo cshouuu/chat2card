@@ -9,7 +9,7 @@ interface EditorProps {
 }
 
 const SUPPORT_LABEL: Record<string, string> = {
-  full: '完美支持',
+  full: '完整支持',
   'best-effort': '尽力解析',
   blocked: '暂不支持',
 };
@@ -44,7 +44,7 @@ export default function Editor({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={
-            '粘贴 AI 对话或分享链接,自动识别解析…\n\n支持三种输入:\n\n1) 分享链接(推荐):\nhttps://claude.ai/share/xxxx\nhttps://chat.deepseek.com/share/xxxx\nhttps://www.doubao.com/thread/xxxx\n\n2) 纯文本(带角色前缀):\n用户: 你好\nChatGPT: 你好!\n\n3) ChatGPT 官方导出 JSON:\n粘贴 conversation.json 内容'
+            '粘贴 AI 对话或分享链接,自动识别解析…\n\n支持三种输入:\n\n1) 分享链接(推荐):\nhttps://chatgpt.com/s/xxxx\nhttps://claude.ai/share/xxxx\nhttps://chat.deepseek.com/share/xxxx\nhttps://www.doubao.com/thread/xxxx\nhttps://share.gemini.google/xxxx\n\n2) 纯文本(带角色前缀):\n用户: 你好\nChatGPT: 你好!\n\n3) ChatGPT 官方导出 JSON:\n粘贴 conversation.json 内容'
           }
           spellCheck={false}
         />
@@ -77,9 +77,10 @@ export default function Editor({
             background: 'rgba(124,127,242,0.05)',
           }}
         >
-          🔒 粘贴文本/JSON 完全本地处理;分享链接解析需经第三方服务(r.jina.ai)中转,敏感对话请用粘贴模式。
+          🔒 粘贴文本/JSON 完全在浏览器本地处理;公开分享链接会请求解析服务,部分平台失败时会通过 r.jina.ai 读取公开分享页。
+          敏感对话建议使用粘贴模式。
           <br />
-          平台支持:Claude ✅ · DeepSeek/豆包 ⚠️ 尽力 · ChatGPT/Gemini ❌(需登录或反爬)
+          平台支持:Claude ✅ · DeepSeek ✅ · 豆包 ✅ · ChatGPT ✅ · Gemini ✅
         </div>
       </div>
     </section>
