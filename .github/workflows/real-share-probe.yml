@@ -18,24 +18,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p .probe
+          mkdir -p probe
 
           fetch_jina_md() {
             local name="$1" url="$2"
-            code=$(curl -L -sS -o ".probe/${name}.md" -w '%{http_code}' -H 'X-No-Cache: true' "https://r.jina.ai/${url}" || true)
-            size=$(wc -c < ".probe/${name}.md" 2>/dev/null || echo 0)
+            code=$(curl -L -sS -o "probe/${name}.md" -w '%{http_code}' -H 'X-No-Cache: true' "https://r.jina.ai/${url}" || true)
+            size=$(wc -c < "probe/${name}.md" 2>/dev/null || echo 0)
             echo "${name}: jina-md status=${code} bytes=${size}"
           }
 
           fetch_jina_html() {
             local name="$1" url="$2"
-            code=$(curl -L -sS -o ".probe/${name}.html" -w '%{http_code}' \
+            code=$(curl -L -sS -o "probe/${name}.html" -w '%{http_code}' \
               -H 'X-Engine: curl' \
               -H 'X-Respond-With: html' \
               -H 'X-Respond-Timing: html' \
               -H 'X-No-Cache: true' \
               "https://r.jina.ai/${url}" || true)
-            size=$(wc -c < ".probe/${name}.html" 2>/dev/null || echo 0)
+            size=$(wc -c < "probe/${name}.html" 2>/dev/null || echo 0)
             echo "${name}: jina-html status=${code} bytes=${size}"
           }
 
@@ -49,6 +49,10 @@ jobs:
           fetch_jina_md gemini 'https://share.gemini.google/etOFajKjXapO'
           fetch_jina_html gemini-html 'https://share.gemini.google/etOFajKjXapO'
 
+          # Resolve Gemini short-link redirect chain separately for diagnostics.
+          curl -sS -D probe/gemini-short.headers -o /dev/null 'https://share.gemini.google/etOFajKjXapO' || true
+          curl -L -sS -D probe/gemini-redirect.headers -o probe/gemini-redirect.html -w '%{url_effective}\n' 'https://share.gemini.google/etOFajKjXapO' > probe/gemini-final-url.txt || true
+
       - name: Exercise server parsers against real links
         shell: bash
         run: |
@@ -58,19 +62,20 @@ jobs:
 
           const summary = {};
           try {
-            const p = parseChatGptHtml(fs.readFileSync('.probe/chatgpt.html', 'utf8'));
+            const p = parseChatGptHtml(fs.readFileSync('probe/chatgpt.html', 'utf8'));
             summary.chatgpt = { ok: true, messages: p.messages.length, attachments: p.messages.reduce((n,m)=>n+(m.attachments?.length||0),0), title: Boolean(p.title) };
+            fs.writeFileSync('probe/chatgpt-parsed.json', JSON.stringify(p, null, 2));
           } catch (e) {
             summary.chatgpt = { ok: false, error: String(e?.message || e) };
           }
           try {
             const p = await parseGeminiShare('https://share.gemini.google/etOFajKjXapO');
             summary.gemini = { ok: true, messages: p.messages.length, attachments: p.messages.reduce((n,m)=>n+(m.attachments?.length||0),0), title: Boolean(p.title) };
-            fs.writeFileSync('.probe/gemini-parsed.json', JSON.stringify(p, null, 2));
+            fs.writeFileSync('probe/gemini-parsed.json', JSON.stringify(p, null, 2));
           } catch (e) {
-            summary.gemini = { ok: false, error: String(e?.message || e) };
+            summary.gemini = { ok: false, error: String(e?.message || e), cause: String(e?.cause?.message || '') };
           }
-          fs.writeFileSync('.probe/server-summary.json', JSON.stringify(summary, null, 2));
+          fs.writeFileSync('probe/server-summary.json', JSON.stringify(summary, null, 2));
           console.log(JSON.stringify(summary));
           NODE
 
@@ -82,11 +87,11 @@ jobs:
             'chatgpt|https://chatgpt.com/s/t_6a7c19e737f88191a89f811d7976c18f' \
             'gemini|https://share.gemini.google/etOFajKjXapO'; do
             name="${entry%%|*}"; url="${entry#*|}"
-            code=$(curl -sS -o ".probe/${name}-worker.json" -w '%{http_code}' \
+            code=$(curl -sS -o "probe/${name}-worker.json" -w '%{http_code}' \
               'https://chat2card-parser.colorful-paradox.workers.dev/parse' \
               -H 'content-type: application/json' \
               --data "{\"url\":\"${url}\"}" || true)
-            size=$(wc -c < ".probe/${name}-worker.json" 2>/dev/null || echo 0)
+            size=$(wc -c < "probe/${name}-worker.json" 2>/dev/null || echo 0)
             echo "${name}: worker status=${code} bytes=${size}"
           done
 
@@ -95,5 +100,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: real-share-probe
-          path: .probe
+          path: probe
           retention-days: 1
