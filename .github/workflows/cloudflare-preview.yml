@@ -1,0 +1,23 @@
+name: Cloudflare Worker Preview
+
+on:
+  push:
+    branches:
+      - feature/cloudflare-worker-deploy
+  workflow_dispatch:
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate parser tests
+        run: node --test parser-service/*.test.mjs
+
+      - name: Deploy temporary Cloudflare Worker
+        run: npx --yes wrangler@latest deploy --temporary
