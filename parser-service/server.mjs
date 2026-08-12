@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { parsePublicShare, ShareParseError } from './parsers.mjs';
+import { parsePublicShare, ShareParseError } from './parse-share.mjs';
 
 const PORT = Number(process.env.PORT || 8787);
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
@@ -36,7 +36,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (req.method === 'GET' && req.url === '/health') {
-    sendJson(res, 200, { ok: true });
+    sendJson(res, 200, { ok: true, service: 'chat2card-parser' });
     return;
   }
   if (req.method !== 'POST' || req.url !== '/parse') {
