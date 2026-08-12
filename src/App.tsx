@@ -135,7 +135,7 @@ export default function App() {
           <span className="slogan">把 AI 对话变成精美分享卡片</span>
           <a
             className="btn btn-ghost"
-            href="https://github.com/yourname/chat2card"
+            href="https://github.com/cshouuu/chat2card"
             target="_blank"
             rel="noopener noreferrer"
           >

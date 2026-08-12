@@ -141,7 +141,7 @@ export function exportHtml(messages: ChatMessage[], title: string | undefined, t
       <div class="meta">${messages.length} 条消息 · 由 chat2card 生成</div>
     </div>
     ${body}
-    <div class="footer">Made with <span>chat2card</span> · github.com/yourname/chat2card</div>
+    <div class="footer">Made with <span>chat2card</span> · github.com/cshouuu/chat2card</div>
   </div>
 </body>
 </html>`;

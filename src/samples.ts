@@ -29,7 +29,7 @@ export const DEFAULT_SAMPLE: { title: string; messages: ChatMessage[] } = {
     {
       role: 'assistant',
       content:
-        '它叫 **chat2card** —— 把 AI 对话一键变成精美卡片/长图。\n\n- 支持粘贴 ChatGPT 导出 JSON 或纯文本对话\n- 6 套主题随便换\n- 一键导出 PNG / HTML / Markdown\n- 纯前端,零依赖,浏览器里直接跑\n\n打开 https://github.com/yourname/chat2card 点个 ⭐ 呗?',
+        '它叫 **chat2card** —— 把 AI 对话一键变成精美卡片/长图。\n\n- 支持粘贴 ChatGPT 导出 JSON 或纯文本对话\n- 6 套主题随便换\n- 一键导出 PNG / HTML / Markdown\n- 纯前端,零依赖,浏览器里直接跑\n\n打开 https://github.com/cshouuu/chat2card 点个 ⭐ 呗?',
     },
   ],
 };

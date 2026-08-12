@@ -8,8 +8,8 @@
 100% client-side — your conversations never leave the browser
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/yourname/chat2card/actions/workflows/ci.yml/badge.svg)](https://github.com/yourname/chat2card/actions/workflows/ci.yml)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/yourname/chat2card/pulls)
+[![CI](https://github.com/cshouuu/chat2card/actions/workflows/ci.yml/badge.svg)](https://github.com/cshouuu/chat2card/actions/workflows/ci.yml)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/cshouuu/chat2card/pulls)
 
 </div>
 
@@ -39,13 +39,13 @@
 
 Open the demo below, click 示例一 / 示例二, or paste your own conversation:
 
-> **Live Demo**: https://yourname.github.io/chat2card/
+> **Live Demo**: https://cshouuu.github.io/chat2card/
 
 ### Option B: Run locally
 
 ```bash
 # clone
-git clone https://github.com/yourname/chat2card.git
+git clone https://github.com/cshouuu/chat2card.git
 cd chat2card
 
 npm install

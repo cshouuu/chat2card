@@ -5,7 +5,7 @@ Thanks for your interest in contributing to chat2card! 🎉
 ## Development setup
 
 ```bash
-git clone https://github.com/yourname/chat2card.git
+git clone https://github.com/cshouuu/chat2card.git
 cd chat2card
 npm install
 npm run dev
@@ -25,7 +25,7 @@ npm run dev
 
 ## What to work on
 
-Check the [issues](https://github.com/yourname/chat2card/issues) tab, or pick from:
+Check the [issues](https://github.com/cshouuu/chat2card/issues) tab, or pick from:
 
 - New conversation format parsers (Claude, Gemini, Kimi…)
 - New themes

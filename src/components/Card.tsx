@@ -133,7 +133,7 @@ const Card = forwardRef<HTMLDivElement, CardProps>(function Card({ messages, tit
           letterSpacing: 0.5,
         }}
       >
-        Made with <span style={{ color: theme.accent }}>chat2card</span> · github.com/yourname/chat2card
+        Made with <span style={{ color: theme.accent }}>chat2card</span> · github.com/cshouuu/chat2card
       </div>
     </div>
   );
