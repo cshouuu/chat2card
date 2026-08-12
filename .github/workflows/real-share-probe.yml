@@ -19,7 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
-          import { parsePublicShare } from './parser-service/parsers.mjs';
+          import { parsePublicShare } from './parser-service/parse-share.mjs';
 
           const cases = [
             ['chatgpt', 'https://chatgpt.com/s/t_6a7c19e737f88191a89f811d7976c18f'],
@@ -71,4 +71,5 @@ jobs:
         run: |
           npm ci
           npm test
+          node --test parser-service/parsers.test.mjs parser-service/providers/*.test.mjs
           npm run build
