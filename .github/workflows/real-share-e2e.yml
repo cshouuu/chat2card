@@ -1,0 +1,130 @@
+name: Real Share Browser E2E
+
+on:
+  push:
+    branches: [fix/chatgpt-share-403]
+  workflow_dispatch:
+
+jobs:
+  browser-card-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install app and browser helper
+        run: |
+          npm ci
+          npm install --no-save --ignore-scripts puppeteer-core@24
+
+      - name: Start local parser and frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          ALLOWED_ORIGIN='*' node parser-service/server.mjs > /tmp/chat2card-parser.log 2>&1 &
+          VITE_PARSER_API='http://127.0.0.1:8787' npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/chat2card-vite.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/health >/dev/null && curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/chat2card-parser.log || true
+          cat /tmp/chat2card-vite.log || true
+          exit 1
+
+      - name: Exercise real links in card UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
+          CHROME="$CHROME" node --input-type=module <<'NODE'
+          import puppeteer from 'puppeteer-core';
+
+          const cases = [
+            { provider: 'ChatGPT', url: 'https://chatgpt.com/s/t_6a7c19e737f88191a89f811d7976c18f', messages: 2 },
+            { provider: 'DeepSeek', url: 'https://chat.deepseek.com/share/yr7r5ogtich73zqhhn', messages: 2 },
+            { provider: '豆包', url: 'https://www.doubao.com/thread/xHnWxp02eroYtbFwR', messages: 2 },
+            { provider: 'Gemini', url: 'https://share.gemini.google/etOFajKjXapO', messages: 4, images: 2 },
+            { provider: 'Claude', url: 'https://claude.ai/share/5c870dee-553c-4133-b4ea-70d2c49063ff', messages: 10, hiddenFiles: 2 },
+          ];
+
+          const browser = await puppeteer.launch({
+            executablePath: process.env.CHROME,
+            headless: true,
+            args: ['--no-sandbox', '--disable-dev-shm-usage'],
+          });
+          const page = await browser.newPage();
+          await page.setViewport({ width: 1600, height: 1100 });
+          await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle2', timeout: 60000 });
+
+          const summaries = [];
+          for (const item of cases) {
+            await page.evaluate((url) => {
+              const textarea = document.querySelector('textarea.editor');
+              if (!(textarea instanceof HTMLTextAreaElement)) throw new Error('editor textarea missing');
+              const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+              if (!setter) throw new Error('textarea setter missing');
+              setter.call(textarea, url);
+              textarea.dispatchEvent(new Event('input', { bubbles: true }));
+              textarea.dispatchEvent(new Event('change', { bubbles: true }));
+            }, item.url);
+
+            await page.waitForFunction(
+              (provider) => {
+                const text = document.querySelector('.editor-status')?.textContent || '';
+                return text.includes(`已从 ${provider} 分享链接解析出`) || text.includes('⚠');
+              },
+              { timeout: 90000 },
+              item.provider,
+            );
+
+            const state = await page.evaluate(async () => {
+              const status = document.querySelector('.editor-status')?.textContent || '';
+              const cardMessages = document.querySelectorAll('.c2c-card .c2c-msg').length;
+              const attachments = document.querySelectorAll('.c2c-card .c2c-attachment').length;
+              const hiddenFiles = [...document.querySelectorAll('.c2c-card .c2c-file')].filter((el) =>
+                (el.textContent || '').includes('分享平台未公开附件内容'),
+              ).length;
+              const images = [...document.querySelectorAll('.c2c-card .c2c-image img')];
+              await Promise.all(images.map((img) => {
+                if (img.complete) return Promise.resolve();
+                return new Promise((resolve) => {
+                  img.addEventListener('load', resolve, { once: true });
+                  img.addEventListener('error', resolve, { once: true });
+                  setTimeout(resolve, 15000);
+                });
+              }));
+              const loadedImages = images.filter((img) => img.naturalWidth > 0 && img.naturalHeight > 0).length;
+              return { status, cardMessages, attachments, images: images.length, loadedImages, hiddenFiles };
+            });
+
+            if (state.status.includes('⚠')) throw new Error(`${item.provider}: UI parser error`);
+            if (state.cardMessages !== item.messages) {
+              throw new Error(`${item.provider}: expected ${item.messages} card messages, got ${state.cardMessages}`);
+            }
+            if (item.images && state.images < item.images) {
+              throw new Error(`${item.provider}: expected ${item.images} image nodes, got ${state.images}`);
+            }
+            if (item.images && state.loadedImages < item.images) {
+              throw new Error(`${item.provider}: expected ${item.images} loaded images, got ${state.loadedImages}`);
+            }
+            if (item.hiddenFiles && state.hiddenFiles < item.hiddenFiles) {
+              throw new Error(`${item.provider}: expected ${item.hiddenFiles} hidden-file placeholders, got ${state.hiddenFiles}`);
+            }
+            summaries.push({
+              provider: item.provider,
+              ok: true,
+              cardMessages: state.cardMessages,
+              attachments: state.attachments,
+              images: state.images,
+              loadedImages: state.loadedImages,
+              hiddenFiles: state.hiddenFiles,
+            });
+          }
+
+          // Never print conversation bodies; only UI structure counts.
+          console.log(JSON.stringify(summaries, null, 2));
+          await browser.close();
+          NODE
