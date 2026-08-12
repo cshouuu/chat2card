@@ -14,70 +14,115 @@ jobs:
         with:
           node-version: 22
 
-      - name: Fetch real share samples
+      - name: Install probe browser helper
+        run: npm install --no-save --ignore-scripts puppeteer-core@24
+
+      - name: Probe DeepSeek public share API
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p probe
-          fetch_md() { curl -L -sS -H 'X-No-Cache: true' -o "probe/$1.md" "https://r.jina.ai/$2"; }
-          fetch_html() { curl -L -sS -H 'X-Engine: curl' -H 'X-Respond-With: html' -H 'X-Respond-Timing: html' -H 'X-No-Cache: true' -o "probe/$1.html" "https://r.jina.ai/$2"; }
-          fetch_html chatgpt 'https://chatgpt.com/s/t_6a7c19e737f88191a89f811d7976c18f'
-          fetch_md deepseek 'https://chat.deepseek.com/share/yr7r5ogtich73zqhhn'
-          fetch_md doubao 'https://www.doubao.com/thread/xHnWxp02eroYtbFwR'
-          fetch_md claude 'https://claude.ai/share/5c870dee-553c-4133-b4ea-70d2c49063ff'
-          fetch_html gemini-html 'https://share.gemini.google/etOFajKjXapO'
-          curl -sS -D probe/gemini-short.headers -o /dev/null 'https://share.gemini.google/etOFajKjXapO' || true
+          URL='https://chat.deepseek.com/api/v0/share/content?share_id=yr7r5ogtich73zqhhn'
+          ORIGIN='https://cshouuu.github.io'
+          curl -sS -D probe/deepseek-api.headers -o probe/deepseek-api.json "$URL" \
+            -H 'Accept: application/json' \
+            -H 'Referer: https://chat.deepseek.com/share/yr7r5ogtich73zqhhn' \
+            -H 'X-Client-Platform: web' \
+            -H 'X-Client-Version: 1.0.0-always' \
+            -H 'X-Client-Locale: zh-CN' \
+            -A 'Mozilla/5.0 Chrome/150 Safari/537.36'
+          echo "deepseek-api bytes=$(wc -c < probe/deepseek-api.json) status=$(head -1 probe/deepseek-api.headers)"
+          curl -sS -D probe/deepseek-cors.headers -o /dev/null -X OPTIONS "$URL" \
+            -H "Origin: $ORIGIN" \
+            -H 'Access-Control-Request-Method: GET' \
+            -H 'Access-Control-Request-Headers: x-client-platform,x-client-version,x-client-locale'
+          grep -Ei '^(HTTP/|access-control)' probe/deepseek-cors.headers || true
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const j=JSON.parse(fs.readFileSync('probe/deepseek-api.json','utf8'));
+          const data=j?.data?.biz_data;
+          const msgs=Array.isArray(data?.messages)?data.messages:[];
+          const summary={code:j?.code,bizCode:j?.data?.biz_code,title:Boolean(data?.title),messages:msgs.length,thinkingMessages:msgs.filter(m=>m?.thinking_content).length,files:msgs.reduce((n,m)=>n+(Array.isArray(m?.files)?m.files.length:0),0),roles:[...new Set(msgs.map(m=>m?.role))]};
+          fs.writeFileSync('probe/deepseek-summary.json',JSON.stringify(summary,null,2));
+          console.log(JSON.stringify(summary));
+          NODE
 
-      - name: Probe Gemini canonical URL and RPC
+      - name: Probe Claude snapshot API
         shell: bash
         run: |
           set -euo pipefail
-          SHARE_ID='804a0cecab4b'
-          CANONICAL="https://gemini.google.com/share/${SHARE_ID}"
-
-          canonical_code=$(curl -sS -o probe/gemini-worker-canonical.json -w '%{http_code}' \
-            'https://chat2card-parser.colorful-paradox.workers.dev/parse' \
-            -H 'content-type: application/json' \
-            --data "{\"url\":\"${CANONICAL}\"}" || true)
-          echo "gemini canonical worker status=${canonical_code} bytes=$(wc -c < probe/gemini-worker-canonical.json)"
-
-          python - <<'PY' > probe/gemini-freq.txt
-          import json
-          sid='804a0cecab4b'
-          inner=json.dumps([None,sid,[4]], separators=(',',':'))
-          freq=json.dumps([[['ujx1Bf',inner,None,'generic']]], separators=(',',':'))
-          print(freq)
-          PY
-          FREQ=$(cat probe/gemini-freq.txt)
-          rpc_code=$(curl -sS -o probe/gemini-rpc.txt -D probe/gemini-rpc.headers -w '%{http_code}' \
-            'https://gemini.google.com/_/BardChatUi/data/batchexecute?rpcids=ujx1Bf&source-path=%2Fshare%2F804a0cecab4b&rt=c' \
-            -H 'content-type: application/x-www-form-urlencoded;charset=UTF-8' \
-            -H 'accept-language: en-US,en;q=0.9' \
-            -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150 Safari/537.36' \
-            --data-urlencode "f.req=${FREQ}" || true)
-          echo "gemini rpc status=${rpc_code} bytes=$(wc -c < probe/gemini-rpc.txt)"
-
+          URL='https://claude.ai/api/chat_snapshots/5c870dee-553c-4133-b4ea-70d2c49063ff'
+          ORIGIN='https://cshouuu.github.io'
+          curl -sS -D probe/claude-api.headers -o probe/claude-api.json "$URL" \
+            -H 'accept: application/json' \
+            -A 'Mozilla/5.0 Chrome/150 Safari/537.36'
+          echo "claude-api bytes=$(wc -c < probe/claude-api.json) status=$(head -1 probe/claude-api.headers)"
+          curl -sS -D probe/claude-cors.headers -o /dev/null -X OPTIONS "$URL" \
+            -H "Origin: $ORIGIN" \
+            -H 'Access-Control-Request-Method: GET'
+          grep -Ei '^(HTTP/|access-control)' probe/claude-cors.headers || true
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
-          import { parseGeminiBatchExecute } from './parser-service/parsers.mjs';
           try {
-            const parsed = parseGeminiBatchExecute(fs.readFileSync('probe/gemini-rpc.txt','utf8'));
-            fs.writeFileSync('probe/gemini-rpc-parsed.json', JSON.stringify(parsed,null,2));
-            console.log(JSON.stringify({geminiRpcParsed:true,messages:parsed.messages.length,title:Boolean(parsed.title)}));
-          } catch (e) {
-            console.log(JSON.stringify({geminiRpcParsed:false,error:String(e?.message||e)}));
-          }
+            const j=JSON.parse(fs.readFileSync('probe/claude-api.json','utf8'));
+            const msgs=Array.isArray(j?.chat_messages)?j.chat_messages:[];
+            const keys=[...new Set(msgs.flatMap(m=>Object.keys(m||{})))].sort();
+            const contentTypes=[...new Set(msgs.flatMap(m=>Array.isArray(m?.content)?m.content.map(b=>b?.type).filter(Boolean):[]))];
+            const attachmentish=msgs.map((m,i)=>({i,sender:m?.sender,keys:Object.keys(m||{}).filter(k=>/file|attach|image|asset/i.test(k)),content:(m?.content||[]).filter(b=>b&&typeof b==='object'&&(/file|attach|image|asset/i.test(String(b.type))||Object.keys(b).some(k=>/file|attach|image|asset/i.test(k)))).map(b=>({type:b.type,keys:Object.keys(b)}))})).filter(x=>x.keys.length||x.content.length);
+            const summary={snapshotName:j?.snapshot_name,messages:msgs.length,topMessageKeys:keys,contentTypes,attachmentish};
+            fs.writeFileSync('probe/claude-summary.json',JSON.stringify(summary,null,2));
+            console.log(JSON.stringify({messages:summary.messages,contentTypes,attachmentMessages:attachmentish.length}));
+          } catch(e) { console.log(JSON.stringify({claudeJson:false,error:String(e?.message||e)})); }
           NODE
 
-      - name: Probe existing parsers
+      - name: Probe Gemini browser CORS
         shell: bash
         run: |
-          node --input-type=module <<'NODE'
+          set -euo pipefail
+          URL='https://gemini.google.com/_/BardChatUi/data/batchexecute?rpcids=ujx1Bf&source-path=%2Fshare%2F804a0cecab4b&rt=c'
+          ORIGIN='https://cshouuu.github.io'
+          curl -sS -D probe/gemini-cors.headers -o /dev/null -X OPTIONS "$URL" \
+            -H "Origin: $ORIGIN" \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type'
+          grep -Ei '^(HTTP/|access-control)' probe/gemini-cors.headers || true
+
+      - name: Discover Doubao structured network data in real browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME=$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)
+          echo "chrome=$CHROME"
+          if [ -z "$CHROME" ]; then echo 'No Chrome found' > probe/doubao-browser-error.txt; exit 0; fi
+          CHROME="$CHROME" node --input-type=module <<'NODE'
           import fs from 'node:fs';
-          import { parseChatGptHtml } from './parser-service/parsers.mjs';
-          const parsed = parseChatGptHtml(fs.readFileSync('probe/chatgpt.html','utf8'));
-          fs.writeFileSync('probe/chatgpt-parsed.json', JSON.stringify(parsed,null,2));
-          console.log(JSON.stringify({chatgpt:true,messages:parsed.messages.length,title:Boolean(parsed.title)}));
+          import puppeteer from 'puppeteer-core';
+          const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          const page=await browser.newPage();
+          await page.setViewport({width:1440,height:1000});
+          const candidates=[];
+          page.on('response', async res=>{
+            try{
+              const url=res.url();
+              const ct=(res.headers()['content-type']||'').toLowerCase();
+              if(!ct.includes('json') && !/thread|conversation|message|chat|share/i.test(url)) return;
+              if(candidates.length>=80) return;
+              let body='';
+              try { body=await res.text(); } catch {}
+              const interesting=/thread|conversation|message|chat|share/i.test(url) || /message|conversation|content|answer|question/i.test(body.slice(0,10000));
+              if(interesting) candidates.push({url,status:res.status(),contentType:ct,bytes:body.length,body:body.slice(0,150000)});
+            }catch{}
+          });
+          try{
+            await page.goto('https://www.doubao.com/thread/xHnWxp02eroYtbFwR',{waitUntil:'networkidle2',timeout:60000});
+            await new Promise(r=>setTimeout(r,5000));
+            const text=await page.evaluate(()=>document.body?.innerText||'');
+            fs.writeFileSync('probe/doubao-browser-text.txt',text);
+            fs.writeFileSync('probe/doubao-browser-url.txt',page.url());
+            fs.writeFileSync('probe/doubao-network.json',JSON.stringify(candidates,null,2));
+            console.log(JSON.stringify({doubaoUrl:page.url(),bodyChars:text.length,candidates:candidates.length}));
+          }catch(e){fs.writeFileSync('probe/doubao-browser-error.txt',String(e?.stack||e));console.log(JSON.stringify({doubaoBrowser:false,error:String(e?.message||e)}));}
+          await browser.close();
           NODE
 
       - name: Upload probe samples
