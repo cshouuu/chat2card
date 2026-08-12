@@ -8,6 +8,7 @@ npm-debug.log*
 !.vscode/extensions.json
 .idea
 .puppeteer-profile
+.workbuddy/
 scripts/
 *.timestamp-*.mjs
 e2e-link.mjs
