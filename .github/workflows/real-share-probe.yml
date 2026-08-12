@@ -1,0 +1,99 @@
+name: Real Share Probe
+
+on:
+  push:
+    branches: [fix/chatgpt-share-403]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Fetch real share samples
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .probe
+
+          fetch_jina_md() {
+            local name="$1" url="$2"
+            code=$(curl -L -sS -o ".probe/${name}.md" -w '%{http_code}' -H 'X-No-Cache: true' "https://r.jina.ai/${url}" || true)
+            size=$(wc -c < ".probe/${name}.md" 2>/dev/null || echo 0)
+            echo "${name}: jina-md status=${code} bytes=${size}"
+          }
+
+          fetch_jina_html() {
+            local name="$1" url="$2"
+            code=$(curl -L -sS -o ".probe/${name}.html" -w '%{http_code}' \
+              -H 'X-Engine: curl' \
+              -H 'X-Respond-With: html' \
+              -H 'X-Respond-Timing: html' \
+              -H 'X-No-Cache: true' \
+              "https://r.jina.ai/${url}" || true)
+            size=$(wc -c < ".probe/${name}.html" 2>/dev/null || echo 0)
+            echo "${name}: jina-html status=${code} bytes=${size}"
+          }
+
+          fetch_jina_html chatgpt 'https://chatgpt.com/s/t_6a7c19e737f88191a89f811d7976c18f'
+          fetch_jina_md deepseek 'https://chat.deepseek.com/share/yr7r5ogtich73zqhhn'
+          fetch_jina_html deepseek-html 'https://chat.deepseek.com/share/yr7r5ogtich73zqhhn'
+          fetch_jina_md doubao 'https://www.doubao.com/thread/xHnWxp02eroYtbFwR'
+          fetch_jina_html doubao-html 'https://www.doubao.com/thread/xHnWxp02eroYtbFwR'
+          fetch_jina_md claude 'https://claude.ai/share/5c870dee-553c-4133-b4ea-70d2c49063ff'
+          fetch_jina_html claude-html 'https://claude.ai/share/5c870dee-553c-4133-b4ea-70d2c49063ff'
+          fetch_jina_md gemini 'https://share.gemini.google/etOFajKjXapO'
+          fetch_jina_html gemini-html 'https://share.gemini.google/etOFajKjXapO'
+
+      - name: Exercise server parsers against real links
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { parseChatGptHtml, parseGeminiShare } from './parser-service/parsers.mjs';
+
+          const summary = {};
+          try {
+            const p = parseChatGptHtml(fs.readFileSync('.probe/chatgpt.html', 'utf8'));
+            summary.chatgpt = { ok: true, messages: p.messages.length, attachments: p.messages.reduce((n,m)=>n+(m.attachments?.length||0),0), title: Boolean(p.title) };
+          } catch (e) {
+            summary.chatgpt = { ok: false, error: String(e?.message || e) };
+          }
+          try {
+            const p = await parseGeminiShare('https://share.gemini.google/etOFajKjXapO');
+            summary.gemini = { ok: true, messages: p.messages.length, attachments: p.messages.reduce((n,m)=>n+(m.attachments?.length||0),0), title: Boolean(p.title) };
+            fs.writeFileSync('.probe/gemini-parsed.json', JSON.stringify(p, null, 2));
+          } catch (e) {
+            summary.gemini = { ok: false, error: String(e?.message || e) };
+          }
+          fs.writeFileSync('.probe/server-summary.json', JSON.stringify(summary, null, 2));
+          console.log(JSON.stringify(summary));
+          NODE
+
+      - name: Probe production Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          for entry in \
+            'chatgpt|https://chatgpt.com/s/t_6a7c19e737f88191a89f811d7976c18f' \
+            'gemini|https://share.gemini.google/etOFajKjXapO'; do
+            name="${entry%%|*}"; url="${entry#*|}"
+            code=$(curl -sS -o ".probe/${name}-worker.json" -w '%{http_code}' \
+              'https://chat2card-parser.colorful-paradox.workers.dev/parse' \
+              -H 'content-type: application/json' \
+              --data "{\"url\":\"${url}\"}" || true)
+            size=$(wc -c < ".probe/${name}-worker.json" 2>/dev/null || echo 0)
+            echo "${name}: worker status=${code} bytes=${size}"
+          done
+
+      - name: Upload probe samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-share-probe
+          path: .probe
+          retention-days: 1
