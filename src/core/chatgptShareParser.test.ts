@@ -43,26 +43,28 @@ describe('parseChatGptHtml', () => {
 describe('ChatGPT Jina raw HTML fallback', () => {
   it('requests raw HTML with the required Jina curl-engine headers', async () => {
     const html = makeSingleTurnShareHtml();
-    const fetchMock = vi.fn(async () => new Response(html, { status: 200 }));
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(html, { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await fetchChatGptHtmlViaJina('https://chatgpt.com/s/example');
     expect(result).toContain('streamController.enqueue');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    const [requestUrl, init] = fetchMock.mock.calls[0];
-    expect(requestUrl).toBe('https://r.jina.ai/https://chatgpt.com/s/example');
-    expect(init?.headers).toMatchObject({
-      'X-Engine': 'curl',
-      'X-Respond-With': 'html',
-      'X-Respond-Timing': 'html',
-      'X-No-Cache': 'true',
-    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://r.jina.ai/https://chatgpt.com/s/example',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-Engine': 'curl',
+          'X-Respond-With': 'html',
+          'X-Respond-Timing': 'html',
+          'X-No-Cache': 'true',
+        }),
+      }),
+    );
   });
 
   it('falls back to Jina raw HTML when the parser service rejects ChatGPT', async () => {
     const html = makeSingleTurnShareHtml();
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const requestUrl = String(input);
       if (requestUrl.includes('/parse')) {
         return new Response(JSON.stringify({ error: 'ChatGPT share page returned HTTP 403.' }), {
@@ -79,6 +81,9 @@ describe('ChatGPT Jina raw HTML fallback', () => {
     expect(parsed.messages).toEqual([
       { role: 'assistant', content: 'This is the shared ChatGPT response.' },
     ]);
-    expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith('https://r.jina.ai/'))).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://r.jina.ai/https://chatgpt.com/s/example',
+      expect.any(Object),
+    );
   });
 });
