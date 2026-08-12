@@ -20,11 +20,22 @@ jobs:
 
       - run: npm ci
 
-      - name: Run unit tests
+      - name: Run frontend unit tests
         run: npm test
+
+      - name: Parser test - URL detection
+        run: node --test --test-name-pattern="detectServerPlatform" parser-service/parsers.test.mjs
+
+      - name: Parser test - ChatGPT turbo stream
+        run: node --test --test-name-pattern="parseChatGptHtml" parser-service/parsers.test.mjs
+
+      - name: Parser test - Gemini batchexecute
+        run: node --test --test-name-pattern="decodeGeminiEnvelope" parser-service/parsers.test.mjs
 
       - name: Type check & build
         run: npm run build
+        env:
+          VITE_PARSER_API: ${{ vars.VITE_PARSER_API }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -55,6 +66,8 @@ jobs:
 
       - run: npm ci
       - run: npm run build
+        env:
+          VITE_PARSER_API: ${{ vars.VITE_PARSER_API }}
 
       - uses: actions/configure-pages@v5
         with:

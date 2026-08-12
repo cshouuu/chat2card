@@ -6,9 +6,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:parser": "node parser-service/server.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:parser": "node --test parser-service/*.test.mjs",
+    "test:all": "npm test && npm run test:parser",
     "test:watch": "vitest"
   },
   "dependencies": {
