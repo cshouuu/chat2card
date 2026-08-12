@@ -21,17 +21,29 @@ jobs:
 
       - name: Deploy temporary Cloudflare Worker and smoke test
         shell: bash
+        env:
+          NO_COLOR: '1'
         run: |
-          set -euo pipefail
+          set -o pipefail
           npx --yes wrangler@latest deploy --temporary 2>&1 | tee cloudflare-deploy.txt
-          WORKER_URL=$(grep -Eo 'https://[^ ]+\.workers\.dev' cloudflare-deploy.txt | tail -1)
-          test -n "$WORKER_URL"
+          DEPLOY_STATUS=${PIPESTATUS[0]}
+          if [ "$DEPLOY_STATUS" -ne 0 ]; then
+            exit "$DEPLOY_STATUS"
+          fi
+          WORKER_URL=$(grep -Eo 'https://[^[:space:]]+\.workers\.dev' cloudflare-deploy.txt | tail -1 || true)
           echo "" >> cloudflare-deploy.txt
+          echo "Extracted Worker URL: $WORKER_URL" >> cloudflare-deploy.txt
+          if [ -z "$WORKER_URL" ]; then
+            echo "Could not extract Worker URL" >> cloudflare-deploy.txt
+            exit 1
+          fi
           echo "Smoke test: $WORKER_URL/health" >> cloudflare-deploy.txt
-          curl --fail --silent --show-error "$WORKER_URL/health" | tee -a cloudflare-deploy.txt
+          sleep 5
+          curl --retry 5 --retry-delay 2 --retry-all-errors --fail --silent --show-error "$WORKER_URL/health" | tee -a cloudflare-deploy.txt
           echo "" >> cloudflare-deploy.txt
 
       - name: Upload deployment info
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cloudflare-deploy-info
