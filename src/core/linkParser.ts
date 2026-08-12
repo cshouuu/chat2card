@@ -1,16 +1,19 @@
 import { ChatMessage, ParsedChat, ParseError, Role } from './types';
+import { parseChatGptHtml } from './chatgptShareParser';
 
 /**
  * 分享链接解析器。
  *
  * Claude / DeepSeek / 豆包继续通过 Jina Reader 转 Markdown；ChatGPT / Gemini
- * 使用独立 parser service，因为这两家的公开分享内容不在普通 HTML 正文里。
+ * 优先使用独立 parser service。ChatGPT 在服务端出口被平台限制时，会自动
+ * 通过 Jina curl engine 获取原始 HTML，并在浏览器内解析 turbo-stream。
  */
 
 export type SharePlatform = 'claude' | 'deepseek' | 'doubao' | 'chatgpt' | 'gemini' | 'unknown';
 
 const JINA_READER = 'https://r.jina.ai/';
 const FETCH_TIMEOUT_MS = 25_000;
+const MAX_JINA_HTML_BYTES = 8 * 1024 * 1024;
 const PARSER_API = ((import.meta.env.VITE_PARSER_API as string | undefined) || (import.meta.env.DEV ? 'http://localhost:8787' : '')).replace(/\/$/, '');
 
 const PLATFORM_HOSTS: Array<[SharePlatform, RegExp]> = [
@@ -104,6 +107,57 @@ export async function fetchParsedShare(url: string): Promise<ParsedChat> {
       throw new ParseError('解析超时,请稍后重试,或改用粘贴模式。');
     }
     throw new ParseError('无法连接分享链接解析服务,请稍后重试或改用粘贴模式。');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * ChatGPT fallback: let Jina's curl engine fetch the raw public page, then decode
+ * the React Router turbo-stream locally. This avoids Cloudflare Worker egress
+ * being rejected by chatgpt.com while preserving message structure.
+ */
+export async function fetchChatGptHtmlViaJina(url: string): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    // Keep the target URL unescaped after r.jina.ai/. This is Jina Reader's
+    // documented URL form and is required for raw HTML mode.
+    const resp = await fetch(JINA_READER + url, {
+      signal: controller.signal,
+      headers: {
+        'X-Engine': 'curl',
+        'X-Respond-With': 'html',
+        'X-Respond-Timing': 'html',
+        'X-No-Cache': 'true',
+      },
+    });
+
+    if (!resp.ok) {
+      throw new ParseError(`ChatGPT 备用解析服务暂时不可用(${resp.status})。`);
+    }
+
+    const declaredLength = Number(
+      resp.headers.get('x-decompressed-content-length') || resp.headers.get('content-length') || 0,
+    );
+    if (declaredLength > MAX_JINA_HTML_BYTES) {
+      throw new ParseError('ChatGPT 分享页内容过大,无法安全解析。');
+    }
+
+    const html = await resp.text();
+    if (!html || html.length > MAX_JINA_HTML_BYTES) {
+      throw new ParseError('ChatGPT 分享页内容为空或过大,无法解析。');
+    }
+    if (!html.includes('streamController.enqueue')) {
+      throw new ParseError('备用解析未获取到 ChatGPT 对话数据。');
+    }
+    return html;
+  } catch (e) {
+    if (e instanceof ParseError) throw e;
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new ParseError('ChatGPT 备用解析超时,请稍后重试。');
+    }
+    throw new ParseError('无法连接 ChatGPT 备用解析服务。');
   } finally {
     clearTimeout(timer);
   }
@@ -235,7 +289,24 @@ export async function parseShareLink(url: string): Promise<ParsedChat> {
     throw new ParseError('这不是一个有效的链接。');
   }
 
-  if (platform === 'chatgpt' || platform === 'gemini') {
+  if (platform === 'chatgpt') {
+    try {
+      return await fetchParsedShare(trimmed);
+    } catch (primaryError) {
+      try {
+        const html = await fetchChatGptHtmlViaJina(trimmed);
+        return parseChatGptHtml(html);
+      } catch (fallbackError) {
+        const primary = primaryError instanceof Error ? primaryError.message : '主解析失败';
+        const fallback = fallbackError instanceof Error ? fallbackError.message : '备用解析失败';
+        throw new ParseError(
+          `ChatGPT 分享链接解析失败。主解析: ${primary} 备用解析: ${fallback} 请稍后重试或改用粘贴模式。`,
+        );
+      }
+    }
+  }
+
+  if (platform === 'gemini') {
     return fetchParsedShare(trimmed);
   }
 
