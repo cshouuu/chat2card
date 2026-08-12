@@ -1,4 +1,4 @@
-import { parsePublicShare, ShareParseError } from './parsers.mjs';
+import { parsePublicShare, ShareParseError } from './parse-share.mjs';
 
 const ALLOWED_ORIGINS = new Set([
   'https://cshouuu.github.io',
