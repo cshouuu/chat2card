@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseDoubaoPayload } from './doubao.mjs';
 
-test('parseDoubaoPayload keeps plain USER content and structured assistant blocks', () => {
+test('parseDoubaoPayload keeps serialized USER text and structured assistant blocks', () => {
   const parsed = parseDoubaoPayload({
     code: 0,
     data: {
@@ -12,7 +12,7 @@ test('parseDoubaoPayload keeps plain USER content and structured assistant block
           {
             index_in_conv: '26',
             user_type: 1,
-            content: '抖音',
+            content: '{"text":"抖音"}',
             content_block: [],
           },
           {
