@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { getTheme, THEMES } from './themes';
+import { getTheme, THEMES } from '.';
 
 describe('theme registry', () => {
   it('ships a broad set of social sharing themes', () => {
-    expect(THEMES.length).toBeGreaterThanOrEqual(12);
+    expect(THEMES.length).toBeGreaterThanOrEqual(15);
     expect(new Set(THEMES.map((theme) => theme.id)).size).toBe(THEMES.length);
+  });
+
+  it('includes the three reference-inspired themes', () => {
+    expect(getTheme('redblue-editorial').shortName).toBe('红蓝编辑部');
+    expect(getTheme('maker-scrapbook').shortName).toBe('创作手帐');
+    expect(getTheme('build-note').shortName).toBe('构建笔记');
   });
 
   it('keeps every theme renderable by preview and export', () => {
