@@ -1,14 +1,14 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, RefObject, useEffect, useRef, useState } from 'react';
 
 interface PreviewProps {
-  children: (ref: React.RefObject<HTMLDivElement>) => ReactNode;
+  cardRef: RefObject<HTMLDivElement>;
+  children: ReactNode;
 }
 
 const CARD_WIDTH = 760;
 
-export default function Preview({ children }: PreviewProps) {
+export default function Preview({ cardRef: _cardRef, children }: PreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
   const [fitZoom, setFitZoom] = useState(1);
   const [zoomStep, setZoomStep] = useState(0);
 
@@ -50,13 +50,13 @@ export default function Preview({ children }: PreviewProps) {
             width: CARD_WIDTH,
           }}
         >
-          {children(cardRef)}
+          {children}
         </div>
       </div>
 
       <div className="preview-foot">
         <span><span className="live-dot" /> 所有修改都会实时同步</span>
-        <span>PNG 导出会使用原始 760px 宽度，不受预览缩放影响</span>
+        <span>PNG 导出使用原始 760px 宽度，不受预览缩放影响</span>
       </div>
     </section>
   );
