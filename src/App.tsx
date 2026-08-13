@@ -24,9 +24,9 @@ function downloadBlob(content: string | Blob, filename: string, mime: string) {
 
 function sampleToText(sample: { title: string; messages: { role: string; content: string }[] }): string {
   return sample.messages
-    .map((m) => {
-      const label = m.role === 'user' ? '用户' : m.role === 'system' ? '系统' : 'ChatGPT';
-      return `${label}: ${m.content}`;
+    .map((message) => {
+      const label = message.role === 'user' ? '用户' : message.role === 'system' ? '系统' : 'ChatGPT';
+      return `${label}: ${message.content}`;
     })
     .join('\n\n');
 }
@@ -44,17 +44,15 @@ export default function App() {
   const isLink = isShareLink(rawText);
   const platform = isLink ? detectPlatform(rawText.trim()) : null;
 
-  // 文本/JSON 同步解析(仅非链接模式)
   const { parsed, error } = useMemo(() => {
     if (isLink) return { parsed: null, error: null };
     try {
       return { parsed: parseChat(rawText), error: null };
-    } catch (e) {
-      return { parsed: null, error: e instanceof ParseError ? e.message : String(e) };
+    } catch (parseError) {
+      return { parsed: null, error: parseError instanceof ParseError ? parseError.message : String(parseError) };
     }
   }, [rawText, isLink]);
 
-  // 链接异步解析(300ms 防抖 + 取消保护)
   useEffect(() => {
     if (!isLink) {
       setLinkParsing(false);
@@ -62,6 +60,7 @@ export default function App() {
       setLinkResult(null);
       return;
     }
+
     let cancelled = false;
     setLinkParsing(true);
     setLinkError(null);
@@ -71,15 +70,15 @@ export default function App() {
         if (cancelled) return;
         setLinkResult(result);
         setLinkParsing(false);
-        // 分享页无标题字段时清空旧标题,避免沿用示例标题
         setTitle(result.title ?? '');
-      } catch (e) {
+      } catch (parseError) {
         if (cancelled) return;
         setLinkResult(null);
         setLinkParsing(false);
-        setLinkError(e instanceof ParseError ? e.message : String(e));
+        setLinkError(parseError instanceof ParseError ? parseError.message : String(parseError));
       }
     }, 300);
+
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -90,6 +89,7 @@ export default function App() {
   const activeError = isLink ? linkError : error;
   const theme = getTheme(themeId);
   const platformHint = platform ? PLATFORM_INFO[platform] : null;
+  const assistantLabel = platformHint?.name ?? 'AI';
 
   const handleLoadSample = useCallback((key: 'default' | 'tech') => {
     const sample = key === 'tech' ? TECH_SAMPLE : DEFAULT_SAMPLE;
@@ -102,10 +102,8 @@ export default function App() {
     if (!original || exporting) return;
     setExporting(true);
     try {
-      // 克隆到屏幕外容器,避免预览缩放影响截图尺寸
       const holder = document.createElement('div');
-      holder.style.cssText =
-        'position:fixed;left:-9999px;top:0;width:760px;z-index:-1;pointer-events:none;';
+      holder.style.cssText = 'position:fixed;left:-9999px;top:0;width:760px;z-index:-1;pointer-events:none;';
       const clone = original.cloneNode(true) as HTMLElement;
       holder.appendChild(clone);
       document.body.appendChild(holder);
@@ -135,84 +133,85 @@ export default function App() {
         return;
       }
       if (format === 'html') {
-        const html = exportHtml(messages, displayTitle, theme);
+        const html = exportHtml(messages, displayTitle, theme, assistantLabel);
         downloadBlob(html, 'chat2card.html', 'text/html;charset=utf-8');
         return;
       }
-      if (format === 'md') {
-        const md = exportMarkdown(messages, displayTitle);
-        downloadBlob(md, 'chat2card.md', 'text/markdown;charset=utf-8');
-      }
+      const md = exportMarkdown(messages, displayTitle);
+      downloadBlob(md, 'chat2card.md', 'text/markdown;charset=utf-8');
     },
-    [exportPng, messages, theme, title],
+    [assistantLabel, exportPng, messages, theme, title],
   );
 
   return (
-    <div className="app">
+    <div className="app-shell">
+      <div className="app-ambient app-ambient-one" aria-hidden />
+      <div className="app-ambient app-ambient-two" aria-hidden />
+
       <header className="topbar">
-        <div className="brand">
-          <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden>
-            <defs>
-              <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#6366f1" />
-                <stop offset="1" stopColor="#a855f7" />
-              </linearGradient>
-            </defs>
-            <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#lg)" />
-            <circle cx="22" cy="30" r="6" fill="#fff" />
-            <circle cx="42" cy="30" r="6" fill="#fff" opacity="0.55" />
-            <path
-              d="M22 44 L22 48 L32 44"
-              fill="none"
-              stroke="#fff"
-              strokeWidth="3.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span className="brand-name">
-            chat<span>2</span>card
+        <a className="brand" href="./" aria-label="chat2card 首页">
+          <span className="brand-mark" aria-hidden>
+            <span className="brand-dot brand-dot-one" />
+            <span className="brand-dot brand-dot-two" />
           </span>
-        </div>
+          <span className="brand-copy">
+            <strong>chat<span>2</span>card</strong>
+            <small>Make AI dialogue worth sharing.</small>
+          </span>
+        </a>
+
         <div className="topbar-right">
-          <span className="slogan">把 AI 对话变成精美分享卡片</span>
+          <span className="open-source-badge"><span /> Open source</span>
           <a
-            className="btn btn-ghost"
+            className="btn github-btn"
             href="https://github.com/cshouuu/chat2card"
             target="_blank"
             rel="noopener noreferrer"
           >
-            ⭐ Star on GitHub
+            <span aria-hidden>☆</span>
+            Star on GitHub
           </a>
         </div>
       </header>
 
-      <Toolbar
-        title={title}
-        onTitleChange={setTitle}
-        themeId={themeId}
-        onThemeChange={setThemeId}
-        onExport={handleExport}
-        exporting={exporting}
-      />
+      <main className="studio-layout">
+        <aside className="studio-sidebar">
+          <Editor
+            value={rawText}
+            onChange={setRawText}
+            error={activeError}
+            messageCount={messages.length}
+            onLoadSample={handleLoadSample}
+            linkParsing={linkParsing}
+            platformHint={platformHint}
+          />
+        </aside>
 
-      <main className="workspace">
-        <Editor
-          value={rawText}
-          onChange={setRawText}
-          error={activeError}
-          messageCount={messages.length}
-          onLoadSample={handleLoadSample}
-          linkParsing={linkParsing}
-          platformHint={platformHint}
-        />
-        <Preview>
-          {(ref) => <Card ref={ref} messages={messages} title={title.trim() || undefined} theme={theme} />}
-        </Preview>
+        <section className="studio-workspace">
+          <Toolbar
+            title={title}
+            onTitleChange={setTitle}
+            themeId={themeId}
+            onThemeChange={setThemeId}
+            onExport={handleExport}
+            exporting={exporting}
+          />
+          <Preview cardRef={cardRef}>
+            <Card
+              ref={cardRef}
+              messages={messages}
+              title={title.trim() || undefined}
+              theme={theme}
+              assistantLabel={assistantLabel}
+            />
+          </Preview>
+        </section>
       </main>
 
       <footer className="app-footer">
-        chat2card · 卡片生成与导出在浏览器完成 · 公开分享链接由解析服务读取 · MIT License
+        <span>chat2card</span>
+        <span>卡片生成与导出在浏览器完成 · 公开分享链接由解析服务读取</span>
+        <span>MIT License</span>
       </footer>
     </div>
   );
