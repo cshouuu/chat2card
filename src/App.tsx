@@ -8,7 +8,7 @@ import { exportHtml, exportMarkdown } from './core/export';
 import { detectPlatform, isShareLink, parseShareLink, PLATFORM_INFO } from './core/linkParser';
 import { ParseError, parseChat } from './core/parser';
 import { DEFAULT_SAMPLE, TECH_SAMPLE } from './samples';
-import { getTheme } from './themes/themes';
+import { getTheme } from './themes';
 
 type ExportFormat = 'png' | 'html' | 'md';
 
@@ -155,7 +155,7 @@ export default function App() {
           <div className="nav-meta">
             <span>五大平台</span>
             <span className="nav-dot">·</span>
-            <span>十二主题</span>
+            <span>十五主题</span>
             <span className="nav-dot">·</span>
             <span>MIT</span>
           </div>
