@@ -1,4 +1,4 @@
-import { THEMES } from '../themes/themes';
+import { THEMES } from '../themes';
 
 interface ToolbarProps {
   title: string;
@@ -57,7 +57,7 @@ export default function Toolbar({ title, onTitleChange, themeId, onThemeChange, 
       <div className="theme-section">
         <div className="theme-section-head">
           <div>
-            <div className="control-kicker">THEME GALLERY</div>
+            <div className="control-kicker">THEME GALLERY · {THEMES.length} THEMES</div>
             <div className="theme-active-title">
               <strong>{activeTheme.name}</strong>
               <span>{activeTheme.desc}</span>
