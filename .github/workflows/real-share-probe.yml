@@ -14,13 +14,12 @@ jobs:
         with:
           node-version: 22
 
-      - name: Parse all five real public shares
+      - name: Validate Vercel production parser with all five real public shares
         shell: bash
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
-          import { parsePublicShare } from './parser-service/parse-share.mjs';
-
+          const api = 'https://chat2card-parser.vercel.app/api/parse';
           const cases = [
             ['chatgpt', 'https://chatgpt.com/s/t_6a7c19e737f88191a89f811d7976c18f'],
             ['deepseek', 'https://chat.deepseek.com/share/yr7r5ogtich73zqhhn'],
@@ -28,46 +27,45 @@ jobs:
             ['gemini', 'https://share.gemini.google/etOFajKjXapO'],
             ['claude', 'https://claude.ai/share/5c870dee-553c-4133-b4ea-70d2c49063ff'],
           ];
-
+          const expected = { chatgpt: 2, deepseek: 2, doubao: 2, gemini: 4, claude: 10 };
           const summaries = [];
           for (const [provider, url] of cases) {
-            const parsed = await parsePublicShare(url);
-            if (!Array.isArray(parsed.messages) || parsed.messages.length === 0) {
-              throw new Error(`${provider}: no messages parsed`);
+            const response = await fetch(api, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', origin: 'https://cshouuu.github.io' },
+              body: JSON.stringify({ url }),
+              signal: AbortSignal.timeout(90000),
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(`${provider}: production parser HTTP ${response.status}: ${body.error || 'unknown'}`);
+            if (!Array.isArray(body.messages) || body.messages.length !== expected[provider]) {
+              throw new Error(`${provider}: expected ${expected[provider]} messages, got ${body.messages?.length}`);
             }
-            for (const message of parsed.messages) {
-              if (!['user', 'assistant'].includes(message.role)) {
-                throw new Error(`${provider}: unsupported role ${message.role}`);
-              }
+            for (const message of body.messages) {
+              if (!['user', 'assistant'].includes(message.role)) throw new Error(`${provider}: invalid role`);
               if (Object.hasOwn(message, 'thinking_content') || Object.hasOwn(message, 'reasoning')) {
-                throw new Error(`${provider}: reasoning field leaked into normalized message`);
+                throw new Error(`${provider}: reasoning leaked`);
               }
             }
-            const attachments = parsed.messages.flatMap((m) => m.attachments || []);
+            const attachments = body.messages.flatMap((m) => m.attachments || []);
             summaries.push({
               provider,
               ok: true,
-              messages: parsed.messages.length,
+              messages: body.messages.length,
               attachments: attachments.length,
               images: attachments.filter((a) => a.type === 'image').length,
               files: attachments.filter((a) => a.type === 'file').length,
               hiddenAttachments: attachments.filter((a) => a.hidden).length,
-              title: Boolean(parsed.title),
             });
           }
-
-          const byProvider = Object.fromEntries(summaries.map((x) => [x.provider, x]));
-          if (byProvider.chatgpt.messages !== 2) throw new Error(`ChatGPT expected 2 messages, got ${byProvider.chatgpt.messages}`);
-          if (byProvider.deepseek.messages !== 2) throw new Error(`DeepSeek expected 2 messages, got ${byProvider.deepseek.messages}`);
-          if (byProvider.doubao.messages !== 2) throw new Error(`Doubao expected 2 messages, got ${byProvider.doubao.messages}`);
-          if (byProvider.gemini.messages !== 4) throw new Error(`Gemini expected 4 messages, got ${byProvider.gemini.messages}`);
-          if (byProvider.gemini.images < 2) throw new Error(`Gemini expected at least 2 image attachments, got ${byProvider.gemini.images}`);
-
-          // Only structural summaries are printed; conversation bodies are intentionally omitted.
+          const gemini = summaries.find((x) => x.provider === 'gemini');
+          const claude = summaries.find((x) => x.provider === 'claude');
+          if (!gemini || gemini.images < 2) throw new Error(`Gemini expected >=2 images, got ${gemini?.images}`);
+          if (!claude || claude.hiddenAttachments < 2) throw new Error(`Claude expected >=2 hidden file placeholders, got ${claude?.hiddenAttachments}`);
           console.log(JSON.stringify(summaries, null, 2));
           NODE
 
-      - name: Verify frontend tests and production build
+      - name: Verify branch parser, frontend tests and production build
         run: |
           npm ci
           npm test
