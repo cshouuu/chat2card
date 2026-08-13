@@ -71,7 +71,7 @@ export default function App() {
         if (cancelled) return;
         setLinkResult(result);
         setLinkParsing(false);
-        // Claude 等平台分享页无标题字段,解析后应清空旧标题
+        // 分享页无标题字段时清空旧标题,避免沿用示例标题
         setTitle(result.title ?? '');
       } catch (e) {
         if (cancelled) return;
@@ -212,7 +212,7 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        chat2card · 纯前端,对话不会离开你的浏览器 · MIT License
+        chat2card · 卡片生成与导出在浏览器完成 · 公开分享链接由解析服务读取 · MIT License
       </footer>
     </div>
   );
