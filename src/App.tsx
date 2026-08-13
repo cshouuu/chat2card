@@ -34,7 +34,7 @@ function sampleToText(sample: { title: string; messages: { role: string; content
 export default function App() {
   const [rawText, setRawText] = useState(() => sampleToText(DEFAULT_SAMPLE));
   const [title, setTitle] = useState(DEFAULT_SAMPLE.title);
-  const [themeId, setThemeId] = useState('aurora');
+  const [themeId, setThemeId] = useState('paper');
   const [exporting, setExporting] = useState(false);
   const [linkParsing, setLinkParsing] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -144,75 +144,88 @@ export default function App() {
   );
 
   return (
-    <div className="app-shell">
-      <div className="app-ambient app-ambient-one" aria-hidden />
-      <div className="app-ambient app-ambient-two" aria-hidden />
+    <div className="site-shell">
+      <nav className="site-nav">
+        <div className="site-nav-inner">
+          <a className="brand" href="./" aria-label="chat2card 首页">
+            <span className="brand-mark" aria-hidden>c2</span>
+            <span className="brand-name">chat2card</span>
+          </a>
 
-      <header className="topbar">
-        <a className="brand" href="./" aria-label="chat2card 首页">
-          <span className="brand-mark" aria-hidden>
-            <span className="brand-dot brand-dot-one" />
-            <span className="brand-dot brand-dot-two" />
-          </span>
-          <span className="brand-copy">
-            <strong>chat<span>2</span>card</strong>
-            <small>Make AI dialogue worth sharing.</small>
-          </span>
-        </a>
+          <div className="nav-meta">
+            <span>五大平台</span>
+            <span className="nav-dot">·</span>
+            <span>十二主题</span>
+            <span className="nav-dot">·</span>
+            <span>MIT</span>
+          </div>
 
-        <div className="topbar-right">
-          <span className="open-source-badge"><span /> Open source</span>
           <a
-            className="btn github-btn"
+            className="nav-cta"
             href="https://github.com/cshouuu/chat2card"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <span aria-hidden>☆</span>
-            Star on GitHub
+            GitHub ↗
           </a>
         </div>
-      </header>
+      </nav>
 
-      <main className="studio-layout">
-        <aside className="studio-sidebar">
-          <Editor
-            value={rawText}
-            onChange={setRawText}
-            error={activeError}
-            messageCount={messages.length}
-            onLoadSample={handleLoadSample}
-            linkParsing={linkParsing}
-            platformHint={platformHint}
-          />
-        </aside>
+      <div className="app-shell">
+        <header className="studio-intro">
+          <div className="intro-copy">
+            <span className="intro-eyebrow"><span /> CHAT2CARD STUDIO</span>
+            <h1>把 AI 对话，变成<span>值得收藏</span>的卡片</h1>
+            <p>粘贴公开分享链接或一段对话文本，选一套主题，直接导出适合社媒分享的卡片。</p>
+          </div>
+          <div className="intro-steps" aria-label="使用步骤">
+            <span><b>01</b> 粘贴对话</span>
+            <i />
+            <span><b>02</b> 选择主题</span>
+            <i />
+            <span><b>03</b> 导出分享</span>
+          </div>
+        </header>
 
-        <section className="studio-workspace">
-          <Toolbar
-            title={title}
-            onTitleChange={setTitle}
-            themeId={themeId}
-            onThemeChange={setThemeId}
-            onExport={handleExport}
-            exporting={exporting}
-          />
-          <Preview cardRef={cardRef}>
-            <Card
-              ref={cardRef}
-              messages={messages}
-              title={title.trim() || undefined}
-              theme={theme}
-              assistantLabel={assistantLabel}
+        <main className="studio-layout">
+          <aside className="studio-sidebar">
+            <Editor
+              value={rawText}
+              onChange={setRawText}
+              error={activeError}
+              messageCount={messages.length}
+              onLoadSample={handleLoadSample}
+              linkParsing={linkParsing}
+              platformHint={platformHint}
             />
-          </Preview>
-        </section>
-      </main>
+          </aside>
 
-      <footer className="app-footer">
-        <span>chat2card</span>
-        <span>卡片生成与导出在浏览器完成 · 公开分享链接由解析服务读取</span>
-        <span>MIT License</span>
-      </footer>
+          <section className="studio-workspace">
+            <Toolbar
+              title={title}
+              onTitleChange={setTitle}
+              themeId={themeId}
+              onThemeChange={setThemeId}
+              onExport={handleExport}
+              exporting={exporting}
+            />
+            <Preview cardRef={cardRef}>
+              <Card
+                ref={cardRef}
+                messages={messages}
+                title={title.trim() || undefined}
+                theme={theme}
+                assistantLabel={assistantLabel}
+              />
+            </Preview>
+          </section>
+        </main>
+
+        <footer className="app-footer">
+          <span>chat2card — Make AI dialogue worth sharing.</span>
+          <span>文本本地处理 · 公开分享链接由解析服务读取 · MIT License</span>
+        </footer>
+      </div>
     </div>
   );
 }
