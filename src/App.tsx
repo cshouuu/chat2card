@@ -146,19 +146,18 @@ export default function App() {
   return (
     <div className="site-shell">
       <nav className="site-nav">
-        <div className="site-nav-inner">
+        <div className="site-nav-inner" style={{ gridTemplateColumns: '1fr auto' }}>
           <a className="brand" href="./" aria-label="chat2card 首页">
-            <span className="brand-mark" aria-hidden>c2</span>
+            <img
+              src={`${import.meta.env.BASE_URL}favicon.svg`}
+              width="28"
+              height="28"
+              alt=""
+              aria-hidden="true"
+              style={{ display: 'block', borderRadius: 8, boxShadow: '0 6px 18px rgba(23, 22, 15, 0.12)' }}
+            />
             <span className="brand-name">chat2card</span>
           </a>
-
-          <div className="nav-meta">
-            <span>五大平台</span>
-            <span className="nav-dot">·</span>
-            <span>十五主题</span>
-            <span className="nav-dot">·</span>
-            <span>MIT</span>
-          </div>
 
           <a
             className="nav-cta"
